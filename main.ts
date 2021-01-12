@@ -243,6 +243,7 @@ class TextExpanderSettingTab extends PluginSettingTab {
 					});
 	                text.inputEl.rows = 20;
 	                text.inputEl.cols = 60;
+	                text.inputEl.style.fontFamily = "monospace";
 				}
             );
 
@@ -257,6 +258,7 @@ class TextExpanderSettingTab extends PluginSettingTab {
 						this.plugin.settings.shell = value;
 						await this.plugin.saveSettings();
 					});
+	                text.inputEl.style.fontFamily = "monospace";
 				}
             );
 	}
