@@ -143,10 +143,12 @@ export default class TextExpanderPlugin extends Plugin {
 				const end = match.index + match[0].length;
 				if (start <= cursor.ch && cursor.ch <= end) {
 					event.preventDefault();
-					if (this.waiting) {
-						new Notice("Cannot process two shortcuts in parallel");
-						return;
-					}
+					// Commented out, as it caused error in case if shortcut commend 
+					// did not write to stdout. Example: {{now}} won't work after {{shell:true}}
+					// if (this.waiting) {
+					// 	new Notice("Cannot process two shortcuts in parallel");
+					// 	return;
+					// }
 					this.replaceShortcut(line, start, end, cm);
 				}
 			}
