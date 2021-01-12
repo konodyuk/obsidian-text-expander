@@ -134,7 +134,6 @@ export default class TextExpanderPlugin extends Plugin {
 		const pattern = "{{(?:(?!{{|}}).)*?}}";
 		const regex = RegExp(pattern, "g");
 		if (event.key == "Tab") {
-			event.preventDefault();
 			const cursor = cm.getCursor();
 			const { line } = cursor;
 			const lineString = cm.getLine(line);
@@ -143,6 +142,11 @@ export default class TextExpanderPlugin extends Plugin {
 				const start = match.index;
 				const end = match.index + match[0].length;
 				if (start <= cursor.ch && cursor.ch <= end) {
+					event.preventDefault();
+					if (this.waiting) {
+						new Notice("Cannot process two macros in parallel");
+						return;
+					}
 					this.replaceShortcut(line, start, end, cm);
 				}
 			}
