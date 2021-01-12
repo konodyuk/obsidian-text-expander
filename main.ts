@@ -24,11 +24,11 @@ const DEFAULT_SHORTCUTS = [
 	},
 	{
 		regex: "^py:",
-		command: "echo '<text>' | cut -c 4- | python3"
+		command: "echo <text> | cut -c 4- | python3"
 	},
 	{
 		regex: "^eval:",
-		command: "echo '<text>' | cut -c 6- | python3 -c 'print(eval(input()))'"
+		command: "echo <text> | cut -c 6- | python3 -c 'print(eval(input()), end=\"\")'"
 	},
 	{
 		regex: "^shell:",
