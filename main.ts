@@ -144,7 +144,7 @@ export default class TextExpanderPlugin extends Plugin {
 				if (start <= cursor.ch && cursor.ch <= end) {
 					event.preventDefault();
 					if (this.waiting) {
-						new Notice("Cannot process two macros in parallel");
+						new Notice("Cannot process two shortcuts in parallel");
 						return;
 					}
 					this.replaceShortcut(line, start, end, cm);
