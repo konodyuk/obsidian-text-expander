@@ -1,45 +1,100 @@
-## Obsidian Sample Plugin
+![demo](https://raw.githubusercontent.com/konodyuk/obsidian-text-expander/master/images/obsidian-text-expander-demo.gif)
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+# Text Expander Plugin
+The plugin replaces shortcuts of format `{{<text>}}` on <kbd>Tab</kbd> press. The replacement can be either static text or the result of execution of arbitrary commands.
 
-This project uses Typescript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in Typescript Definition format, which contains TSDoc comments describing what it does.
+## Use Cases
+-   Shortcuts for static text templates: `{{trigger}}` -> `Some template text`
+-   For dynamic values: `{{now}}` -> `14:23`, `{{date}}` -> `2021-01-15`
+-   For python expressions: `{{eval:2**10}}` -> `1024`, `{{eval:len(open("<note_path>").readlines())}}`, `{{py:from numpy import*;print(linalg.inv(triu([1,2,3,4])))}}`, ...
+-   For shell commands: `{{shell:ls <vault_path>/attachments}}`
+-   For custom tools: `{{mytool:extract_all_lines_starting_with_(#tag)}}` -> `#tag Text\n#tag ...`
 
-**Note:** The Obsidian API is still in early alpha and is subject to change at any time!
+## Installation
+Open `Settings > Third-party plugins > Community Plugins > Browse`, then search for `Text Expander` and click `Install`.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Changes the default font color to red using `styles.css`.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open Sample Modal" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## Settings
+The shortcuts are defined as a JSON-list of entries, each containing three fields: `regex` (required), `replacement` (optional) and `command` (optional). 
+-   `regex` field defines the trigger pattern. The entries are tried sequentially, until `regex` matches the input.
+-   `replacement` simply replaces the shortcut, if provided.
+-   `command` contains the command which is run in shell. The shortcut is replaced with its output.
 
+### Default Shortcuts
+Below is the default configuration that can be changed in `Settings > Plugin Options > Text Expander > Shortcuts`:
+```json
+[
+    {
+        regex: "^trigger$",
+        replacement: "## Example replacement\n- [ ] ",
+    },
+    {
+        regex: "^now$",
+        command: "printf `date +%H:%M`",
+    },
+    {
+        regex: "^py:",
+        command: "echo <text> | cut -c 4- | python3"
+    },
+    {
+        regex: "^eval:",
+        command: "echo <text> | cut -c 6- | python3 -c 'print(eval(input()), end=\"\")'"
+    },
+    {
+        regex: "^shell:",
+        command: "echo <text> | cut -c 7- | sh"
+    },
+    {
+        regex: "^tool:",
+        command: "echo <text> | cut -c 6- | python3 <scripts_path>/tool.py"
+    },
+    {
+        regex: "^sympy:",
+        command: "echo <text> | cut -c 7- | python3 <scripts_path>/sympy_tool.py"
+    }
+]
+```
 
-### Releasing new releases
+### Variables
+With `<variable_name>` you can insert the value of a variable into the `command` field before it is executed. The following variables can be used:
+-   `<text>` The contents of brackets, with escaped single-quotes. Recommended in most cases.
+-   `<text_raw>` Same as `<text>`, but nothing is escaped.
+-   `<vault_path>` The absolute path of current vault.
+-   `<inner_path>` The directory of the current note in obsidian file explorer. E.g. inside `<vault_path>/folder/folder2/note.md` its value will be `folder/folder2`.
+-   `<note_name>` The filename of the current note, i.e. `note.md` in the example above.
+-   `<note_path>` The shortcut for `<inner_path>/<note_name>`.
+-   `<scripts_path>` The shortcut for `<vault_path>/.obsidian/scripts`.
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments.
-- Publish the release.
+### Example flows
+#### Example #1
+-   `{{trigger}}`<kbd>Tab</kbd> is entered
+-   `^trigger$` matches `trigger` -> the first shortcut is used
+-   `replacement` field of the first shortcut replaces `{{trigger}}`
 
-### Adding your plugin to the community plugin list
+#### Example #2
+-   `{{now}}`<kbd>Tab</kbd>
+-   `^trigger$` doesn't match `now` -> proceeding to the second shortcut
+-   `^now$` matches `now` -> the second shortcut is used
+-   `command` field is executed in the specified shell, then the output is used to replace `{{now}}`
 
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+#### Example #3
+-   `{{sympy:latex(integrate(x, x))}}`<kbd>Tab</kbd>
+-   Only the last shortcut's `regex` matches the input
+-   Variables are processed: `echo <text> | cut -c 7- | python3 <scripts_path>/sympy_tool.py` -> `echo 'sympy:latex(integrate(x, x))' | cut -c 7- | python3 /path/to/vault/.obsidian/scripts/sympy_tool.py`
+-   The command is executed: `cut` cuts the `sympy:` prefix and `latex(integrate(x, x))` is passed as input to `sympy_tool.py`
+-   `sympy_tool.py` outputs `\frac{x^{2}}{2}`, which replaces the `{{sympy:latex(integrate(x, x))}}`
 
-### How to use
+### Custom Scripts
+You can place any scripts to `<vault_path>/.obsidian/scripts` to use them in commands. The [examples](https://github.com/konodyuk/obsidian-text-expander/tree/master/examples/scripts) folder contains two sample scripts, enabling `{{tool:` and `{{sympy:` shortcuts.
 
-- Clone this repo.
-- `npm i` or `yarn` to install dependencies
-- `npm run dev` to start compilation in watch mode.
+## Security
+As the plugin is shell-powered, one can easily run destructive commands just by typing `{{shell:rm -rf ...}}`<kbd>Tab</kbd>. Think twice before pressing <kbd>Tab</kbd> when your cursor is on something like `{{shell:...}}`. I also strongly discourage using the `{{shell:...}}` pattern, which was added mostly for demonstration purposes, and recommend writing python scripts instead.
 
-### Manually installing the plugin
+## Future Work
+-   `<cursor>` placeholder, defining the cursor position after replacement. Example usage: `{{texenv:cases}}` -> `\begin{cases}\n\t<cursor>\n\end{cases}`. In case if multiple `<cursor>` placeholders are used in single shortcut, then <kbd>Tab</kbd> will switch the cursor position between them until all are visited.
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+## Known Issues
+-   Windows is not supported so far.
+-   Long-running commands can cause issues. E.g. if you type `{{shell:sleep 10 && echo 1}}`<kbd>Tab</kbd> and until its finish type `{{now}}`<kbd>Tab</kbd>, then `{{now}}` will be replaced with `1`.
 
-### API Documentation
-
-See https://github.com/obsidianmd/obsidian-api
+## Credits
+The project was inspired by the [PoC text expander implementation](https://github.com/akaalias/text-expander-plugin). I also used certain ideas from the [Run Snippets plugin](https://github.com/cristianvasquez/obsidian-snippets-plugin).
