@@ -24,32 +24,32 @@ Below is the default configuration that can be changed in `Settings > Plugin Opt
 ```json
 [
     {
-        regex: "^trigger$",
-        replacement: "## Example replacement\n- [ ] ",
+        "regex": "^trigger$",
+        "replacement": "## Example replacement\n- [ ] ",
     },
     {
-        regex: "^now$",
-        command: "printf `date +%H:%M`",
+        "regex": "^now$",
+        "command": "printf `date +%H:%M`",
     },
     {
-        regex: "^py:",
-        command: "echo <text> | cut -c 4- | python3"
+        "regex": "^py:",
+        "command": "echo <text> | cut -c 4- | python3"
     },
     {
-        regex: "^eval:",
-        command: "echo <text> | cut -c 6- | python3 -c 'print(eval(input()), end=\"\")'"
+        "regex": "^eval:",
+        "command": "echo <text> | cut -c 6- | python3 -c 'print(eval(input()), end=\"\")'"
     },
     {
-        regex: "^shell:",
-        command: "echo <text> | cut -c 7- | sh"
+        "regex": "^shell:",
+        "command": "echo <text> | cut -c 7- | sh"
     },
     {
-        regex: "^tool:",
-        command: "echo <text> | cut -c 6- | python3 <scripts_path>/tool.py"
+        "regex": "^tool:",
+        "command": "echo <text> | cut -c 6- | python3 <scripts_path>/tool.py"
     },
     {
-        regex: "^sympy:",
-        command: "echo <text> | cut -c 7- | python3 <scripts_path>/sympy_tool.py"
+        "regex": "^sympy:",
+        "command": "echo <text> | cut -c 7- | python3 <scripts_path>/sympy_tool.py"
     }
 ]
 ```
