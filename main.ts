@@ -234,7 +234,7 @@ class TextExpanderSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Shortcuts')
-			.setDesc('')
+			.setDesc(this.shortcutsHelp())
 			.addTextArea(text => {
 					text
 					.setPlaceholder(JSON.stringify(DEFAULT_SETTINGS, null, "\t"))
@@ -251,7 +251,7 @@ class TextExpanderSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Shell executable')
-			.setDesc('')
+			.setDesc('All commands will be executed inside it.')
 			.addText(text => {
 					text
 					.setPlaceholder(DEFAULT_SETTINGS.shell)
@@ -264,4 +264,25 @@ class TextExpanderSettingTab extends PluginSettingTab {
 				}
             );
 	}
+
+    private shortcutsHelp(): DocumentFragment {
+        const descEl = document.createDocumentFragment();
+        descEl.appendText('Are defined as a JSON-list. Fields:');
+        descEl.appendChild(document.createElement('br'));
+        var token_regex = document.createElement('b');
+        token_regex.innerText = 'regex';
+        descEl.appendChild(token_regex);
+        descEl.appendText(' (required) - trigger pattern');
+        descEl.appendChild(document.createElement('br'));
+        var token_replacement = document.createElement('b');
+        token_replacement.innerText = 'replacement';
+        descEl.appendChild(token_replacement);
+        descEl.appendText(' (optional) - text replacement, used if provided');
+        descEl.appendChild(document.createElement('br'));
+        var token_command = document.createElement('b');
+        token_command.innerText = 'command';
+        descEl.appendChild(token_command);
+        descEl.appendText(' (optional) - shell command whose stdout is used as a replacement');
+        return descEl;
+    }
 }
