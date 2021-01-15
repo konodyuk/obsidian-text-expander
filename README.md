@@ -94,7 +94,7 @@ As the plugin is shell-powered, one can easily run destructive commands just by 
 
 ## Known Issues
 -   Windows is not supported so far.
--   Long-running commands can cause issues. E.g. if you type `{{shell:sleep 10 && echo 1}}`<kbd>Tab</kbd> and until its finish type `{{now}}`<kbd>Tab</kbd>, then `{{now}}` will be replaced with `1`.
+-   Long-running commands can cause issues. E.g. if you type `{{shell:sleep 10 && echo 1}}`<kbd>Tab</kbd> and before it finishes type `{{now}}`<kbd>Tab</kbd>, then `{{now}}` will be replaced with `1`.
 
 ## Credits
 The project was inspired by the [PoC text expander implementation](https://github.com/akaalias/text-expander-plugin). I also used certain ideas from the [Run Snippets plugin](https://github.com/cristianvasquez/obsidian-snippets-plugin).
