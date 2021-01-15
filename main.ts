@@ -198,8 +198,8 @@ export default class TextExpanderPlugin extends Plugin {
 					command = replaceAll(command, "<text_raw>", content);
 					command = replaceAll(command, "<vault_path>", vault_path);
 					command = replaceAll(command, "<inner_path>", inner_path);
-					command = replaceAll(command, "<file_name>", file_name);
-					command = replaceAll(command, "<file_path>", file_path);
+					command = replaceAll(command, "<note_name>", file_name);
+					command = replaceAll(command, "<note_path>", file_path);
 					command = replaceAll(command, "<scripts_path>", scripts_path);
 					this.child.stdin.write(command + "\n");
 					return false;
