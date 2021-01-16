@@ -91,6 +91,8 @@ As the plugin is shell-powered, one can easily run destructive commands just by 
 
 ## Future Work
 -   `<cursor>` placeholder, defining the cursor position after replacement. Example usage: `{{texenv:cases}}` -> `\begin{cases}\n\t<cursor>\n\end{cases}`. In case if multiple `<cursor>` placeholders are used in single shortcut, then <kbd>Tab</kbd> will switch the cursor position between them until all are visited.
+-   Special syntax (something like `{*{<text>}}`) for preview-time rendering instead of instant replacement.
+-   Static-only support for Windows.
 
 ## Known Issues
 -   Windows is not supported so far.
