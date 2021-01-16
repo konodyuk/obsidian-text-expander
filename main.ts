@@ -286,20 +286,14 @@ class TextExpanderSettingTab extends PluginSettingTab {
   private shortcutsHelp(): DocumentFragment {
     const descEl = document.createDocumentFragment();
     descEl.appendText('Are defined as a JSON-list. Fields:');
-    descEl.appendChild(document.createElement('br'));
-    const token_regex = document.createElement('b');
-    token_regex.innerText = 'regex';
-    descEl.appendChild(token_regex);
+    descEl.createEl('br');
+    descEl.createEl('b').innerText = 'regex';
     descEl.appendText(' (required) - trigger pattern');
-    descEl.appendChild(document.createElement('br'));
-    const token_replacement = document.createElement('b');
-    token_replacement.innerText = 'replacement';
-    descEl.appendChild(token_replacement);
+    descEl.createEl('br');
+    descEl.createEl('b').innerText = 'replacement';
     descEl.appendText(' (optional) - text replacement, used if provided');
-    descEl.appendChild(document.createElement('br'));
-    const token_command = document.createElement('b');
-    token_command.innerText = 'command';
-    descEl.appendChild(token_command);
+    descEl.createEl('br');
+    descEl.createEl('b').innerText = 'command';
     descEl.appendText(
       ' (optional) - shell command whose stdout is used as a replacement'
     );
