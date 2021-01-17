@@ -277,6 +277,7 @@ class TextExpanderSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.shell)
           .onChange(async value => {
             this.plugin.settings.shell = value;
+            this.plugin.spawnShell();
             await this.plugin.saveSettings();
           });
         text.inputEl.style.fontFamily = 'monospace';
