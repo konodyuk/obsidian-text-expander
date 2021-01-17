@@ -99,20 +99,20 @@ export default class TextExpanderPlugin extends Plugin {
     this.child.stdout.on('data', this.handleSubprocessStdout);
     this.child.stderr.on('data', this.handleSubprocessStderr);
 
-    this.child.on('close', (code: number) => {
-      console.log(`child process closed all stdio with code ${code}`);
-      this.spawnShell();
-    });
+    // this.child.on('close', (code: number) => {
+    //   console.log(`child process closed all stdio with code ${code}`);
+    //   this.spawnShell();
+    // });
 
-    this.child.on('exit', (code: number) => {
-      console.log(`child process exited with code ${code}`);
-      this.spawnShell();
-    });
+    // this.child.on('exit', (code: number) => {
+    //   console.log(`child process exited with code ${code}`);
+    //   this.spawnShell();
+    // });
 
-    this.child.on('error', (err: Error) => {
-      console.log(`child process: error ${err}`);
-      this.spawnShell();
-    });
+    // this.child.on('error', (err: Error) => {
+    //   console.log(`child process: error ${err}`);
+    //   this.spawnShell();
+    // });
   }
 
   private readonly handleSubprocessStdout = (data: Buffer): void => {
