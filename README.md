@@ -3,6 +3,8 @@
 # Text Expander Plugin
 The plugin replaces shortcuts of format `{{<text>}}` on <kbd>Tab</kbd> press. The replacement can be either static text or the result of execution of arbitrary commands.
 
+> ⚠️ Currently, the plugin supports Windows only partially. See the Known Issues section.
+
 ## Use Cases
 -   Shortcuts for static text templates: `{{trigger}}` -> `Some template text`
 -   For dynamic values: `{{now}}` -> `14:23`, `{{date}}` -> `2021-01-15`
@@ -95,8 +97,10 @@ As the plugin is shell-powered, one can easily run destructive commands just by 
 -   Static-only support for Windows.
 
 ## Known Issues
--   Windows is not supported so far.
 -   Long-running commands can cause issues. E.g. if you type `{{shell:sleep 10 && echo 1}}`<kbd>Tab</kbd> and before it finishes type `{{now}}`<kbd>Tab</kbd>, then `{{now}}` will be replaced with `1`.
+-   Windows support is currently limited:
+    -   Shortcuts with `replacement` field are processed correctly
+    -   To use `command` field on Windows, you need to set the `Settings > Plugin Options > Text Expander > Shell executable` to `powershell` and use Powershell syntax in your commands.
 
 ## Credits
 The project was inspired by the [PoC text expander implementation](https://github.com/akaalias/text-expander-plugin). I also used certain ideas from the [Run Snippets plugin](https://github.com/cristianvasquez/obsidian-snippets-plugin).
