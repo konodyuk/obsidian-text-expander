@@ -20,6 +20,12 @@ interface TextExpanderPluginSettings {
   shell: string;
 }
 
+interface PatternEntry {
+  pattern: string;
+  cut_start: number;
+  cut_end: number;
+}
+
 const DEFAULT_SHORTCUTS = [
   {
     regex: '^trigger$',
@@ -135,25 +141,39 @@ export default class TextExpanderPlugin extends Plugin {
     event: KeyboardEvent
   ): void => {
     // const pattern = "{{[^{}]*}}";
-    const pattern = '{{(?:(?!{{|}}).)*?}}';
-    const regex = RegExp(pattern, 'g');
-    if (event.key === 'Tab') {
-      const cursor = cm.getCursor();
-      const {line} = cursor;
-      const lineString = cm.getLine(line);
-      let match;
-      while ((match = regex.exec(lineString)) !== null) {
-        const start = match.index;
-        const end = match.index + match[0].length;
-        if (start <= cursor.ch && cursor.ch <= end) {
-          event.preventDefault();
-          // Commented out, as it caused error in case if shortcut commend
-          // did not write to stdout. Example: {{now}} won't work after {{shell:true}}
-          // if (this.waiting) {
-          // 	new Notice("Cannot process two shortcuts in parallel");
-          // 	return;
-          // }
-          this.replaceShortcut(line, start, end, cm);
+    const patterns: Array<PatternEntry> = [
+      {
+        pattern: '{{(?:(?!{{|}}).)*?}}',
+        cut_start: 2,
+        cut_end: 2
+      },
+      {
+        pattern: ':[^\s]*',
+        cut_start: 1,
+        cut_end: 0
+      }
+    ]
+    for (let entry of patterns) {
+      let pattern = entry.pattern;
+      const regex = RegExp(pattern, 'g');
+      if (event.key === 'Tab') {
+        const cursor = cm.getCursor();
+        const {line} = cursor;
+        const lineString = cm.getLine(line);
+        let match;
+        while ((match = regex.exec(lineString)) !== null) {
+          const start = match.index;
+          const end = match.index + match[0].length;
+          if (start <= cursor.ch && cursor.ch <= end) {
+            event.preventDefault();
+            // Commented out, as it caused error in case if shortcut commend
+            // did not write to stdout. Example: {{now}} won't work after {{shell:true}}
+            // if (this.waiting) {
+            // 	new Notice("Cannot process two shortcuts in parallel");
+            // 	return;
+            // }
+            this.replaceShortcut(line, start, end, cm, entry);
+          }
         }
       }
     }
@@ -163,11 +183,12 @@ export default class TextExpanderPlugin extends Plugin {
     line: number,
     start: number,
     end: number,
-    cm: CodeMirror.Editor
+    cm: CodeMirror.Editor,
+    entry: PatternEntry
   ) {
     const content = cm.getRange(
-      {line: line, ch: start + 2},
-      {line: line, ch: end - 2}
+      {line: line, ch: start + entry.cut_start},
+      {line: line, ch: end - entry.cut_end}
     );
 
     this.settings.shortcuts.every(
