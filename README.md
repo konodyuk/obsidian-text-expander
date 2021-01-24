@@ -104,3 +104,11 @@ As the plugin is shell-powered, one can easily run destructive commands just by 
 
 ## Credits
 The project was inspired by the [PoC text expander implementation](https://github.com/akaalias/text-expander-plugin). I also used certain ideas from the [Run Snippets plugin](https://github.com/cristianvasquez/obsidian-snippets-plugin).
+
+## Release Notes
+### 1.1.0
+-   Added support for `:now` syntax. Use `{{py: long command}}` syntax for triggers containing whitespace characters and `:trigger` for short triggers without whitespace
+-   Shell executable is now automatically respawned on "Shell executable" value change
+
+### 1.0.1
+-   Fixed errors caused by incorrect "Shell executable" value
