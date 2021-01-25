@@ -148,7 +148,7 @@ export default class TextExpanderPlugin extends Plugin {
         cut_end: 2
       },
       {
-        pattern: ':[^\s]*',
+        pattern: ':[^\\s]*',
         cut_start: 1,
         cut_end: 0
       }
