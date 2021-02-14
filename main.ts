@@ -2,65 +2,84 @@ import {
   App,
   Notice,
   Plugin,
+  Modal,
   PluginSettingTab,
   Setting,
   MarkdownView,
+  ButtonComponent,
+  ExtraButtonComponent,
+  ToggleComponent,
 } from 'obsidian';
 
 const {spawn, Buffer, ChildProcess} = require('child_process');
 
-interface ShortcutEntry {
+interface LegacyShortcutEntry {
   regex: string;
   command?: string;
   replacement?: string;
 }
 
-interface TextExpanderPluginSettings {
-  shortcuts: Array<ShortcutEntry>;
+interface LegacyTextExpanderPluginSettings {
+  shortcuts: Array<LegacyShortcutEntry>;
   shell: string;
 }
 
-interface PatternEntry {
+interface SnippetEntry {
+  trigger: string;
+  replacement: string;
+}
+
+interface FormatEntry {
   pattern: string;
   cut_start: number;
   cut_end: number;
 }
 
-const DEFAULT_SHORTCUTS = [
+interface TextExpanderPluginSettings {
+  snippets: Array<SnippetEntry>;
+  formats: Array<FormatEntry>;
+  handler_command: string;
+  is_custom_handler_enabled: boolean;
+  is_migration_manager_enabled: boolean;
+  legacy_settings: string | null;
+  shell?: string;
+  shortcuts?: Array<LegacyShortcutEntry>;
+}
+
+interface Context {
+  vault_path: string;
+  file_name: string;
+  file_path: string;
+  scripts_path: string;
+}
+
+const DEFAULT_SNIPPETS = [
   {
-    regex: '^trigger$',
-    replacement: '## Example replacement\n- [ ] ',
-  },
-  {
-    regex: '^now$',
-    command: 'printf `date +%H:%M`',
-  },
-  {
-    regex: '^py:',
-    command: 'echo <text> | cut -c 4- | python3',
-  },
-  {
-    regex: '^eval:',
-    command:
-      'echo <text> | cut -c 6- | python3 -c \'print(eval(input()), end="")\'',
-  },
-  {
-    regex: '^shell:',
-    command: 'echo <text> | cut -c 7- | sh',
-  },
-  {
-    regex: '^tool:',
-    command: 'echo <text> | cut -c 6- | python3 <scripts_path>/tool.py',
-  },
-  {
-    regex: '^sympy:',
-    command: 'echo <text> | cut -c 7- | python3 <scripts_path>/sympy_tool.py',
-  },
+    trigger: "",
+    replacement: ""
+  }
 ];
 
+const DEFAULT_FORMATS: Array<FormatEntry> = [
+  {
+    pattern: '{{(?:(?!{{|}}).)*?}}',
+    cut_start: 2,
+    cut_end: 2
+  },
+  {
+    pattern: ':[^\\s]*',
+    cut_start: 1,
+    cut_end: 0
+  }
+]
+
 const DEFAULT_SETTINGS: TextExpanderPluginSettings = {
-  shortcuts: DEFAULT_SHORTCUTS,
-  shell: '/bin/sh',
+  snippets: DEFAULT_SNIPPETS,
+  formats: DEFAULT_FORMATS,
+  handler_command: 'python3 <scripts_path>/main.py',
+  is_custom_handler_enabled: false,
+  is_migration_manager_enabled: false,
+  legacy_settings: null,
 };
 
 export default class TextExpanderPlugin extends Plugin {
@@ -68,9 +87,9 @@ export default class TextExpanderPlugin extends Plugin {
 
   private codemirrorEditor: CodeMirror.Editor;
 
-  private shortcutLine: number;
-  private shortcutStart: number;
-  private shortcutEnd: number;
+  private snippetLine: number;
+  private snippetStart: number;
+  private snippetEnd: number;
 
   private waiting: Boolean;
   private child: typeof ChildProcess;
@@ -84,49 +103,99 @@ export default class TextExpanderPlugin extends Plugin {
       codemirrorEditor.on('keydown', this.handleKeyDown);
     });
 
-    this.spawnShell();
+    this.spawnHandler();
   }
 
   onunload() {
-    console.log('unloading plugin');
+    console.log("[Text Expander Plugin]", 'unloading');
+    this.killHandler();
   }
 
   async loadSettings() {
-    this.settings = Object.assign(DEFAULT_SETTINGS, await this.loadData());
+    this.settings = Object.assign(Object.create(DEFAULT_SETTINGS), await this.loadData());
+    this.loadLegacy()
   }
+
+  async loadLegacy() {
+    if (this.settings.legacy_settings != null) {
+      return;
+    }
+    let legacy_settings: LegacyTextExpanderPluginSettings = {shortcuts: [], shell: ""};
+    if (this.settings.shortcuts) {
+      legacy_settings.shortcuts = this.settings.shortcuts;
+    }
+    if (this.settings.shell) {
+      legacy_settings.shell = this.settings.shell;
+    }
+    this.settings.legacy_settings = JSON.stringify(legacy_settings, null, '\t');
+    delete this.settings.shortcuts;
+    delete this.settings.shell;
+    this.saveSettings()
+  }
+
+  // async migrateSettings() {
+  //   if (this.settings.shortcuts) {
+  //     for (let item of this.settings.shortcuts) {
+  //       let newEntry: SnippetEntry = {trigger: "", replacement: ""};
+  //       if (item.regex) {
+  //         newEntry.trigger = item.regex;
+  //       }
+  //       if (item.replacement) {
+  //         newEntry.replacement = item.replacement;
+  //       }
+  //       this.settings.snippets.push(newEntry);
+  //     }
+  //     delete this.settings.shortcuts;
+  //   }
+  // }
 
   async saveSettings() {
     await this.saveData(this.settings);
   }
 
-  spawnShell() {
-    this.child = spawn(this.settings.shell);
+  spawnHandler() {
+    if (!this.settings.is_custom_handler_enabled) {
+      return;
+    }
+    let handler_command = this.replaceContext(this.settings.handler_command);
+    let argv = handler_command.split(RegExp('\\s+'));
+    console.log("[Text Expander Plugin]", "spawning handler:", argv)
+    this.child = spawn(argv[0], argv.slice(1));
     this.child.stdin.setEncoding('utf-8');
     this.child.stdout.on('data', this.handleSubprocessStdout);
     this.child.stderr.on('data', this.handleSubprocessStderr);
 
-    // this.child.on('close', (code: number) => {
-    //   console.log(`child process closed all stdio with code ${code}`);
-    //   this.spawnShell();
-    // });
+    this.child.on('close', (code: number) => {
+      console.log("[Text Expander Plugin]", `child process closed all stdio with code ${code}`);
+      // this.spawnHandler();
+    });
 
-    // this.child.on('exit', (code: number) => {
-    //   console.log(`child process exited with code ${code}`);
-    //   this.spawnShell();
-    // });
+    this.child.on('exit', (code: number) => {
+      console.log("[Text Expander Plugin]", `child process exited with code ${code}`);
+      // this.spawnHandler();
+    });
 
-    // this.child.on('error', (err: Error) => {
-    //   console.log(`child process: error ${err}`);
-    //   this.spawnShell();
-    // });
+    this.child.on('error', (err: Error) => {
+      console.log(`"[Text Expander Plugin]", child process: error ${err}`);
+      // this.spawnHandler();
+    });
+
+    process.on("exit", function() {
+      this.killHandler()
+    })
+  }
+
+  killHandler() {
+    this.child.kill();
   }
 
   private readonly handleSubprocessStdout = (data: Buffer): void => {
+    let response = JSON.parse(data.toString());
     if (this.waiting) {
       this.codemirrorEditor.replaceRange(
-        data.toString(),
-        {ch: this.shortcutStart, line: this.shortcutLine},
-        {ch: this.shortcutEnd, line: this.shortcutLine}
+        response.replacement,
+        {ch: this.snippetStart, line: this.snippetLine},
+        {ch: this.snippetEnd, line: this.snippetLine}
       );
       this.waiting = false;
     }
@@ -140,20 +209,7 @@ export default class TextExpanderPlugin extends Plugin {
     cm: CodeMirror.Editor,
     event: KeyboardEvent
   ): void => {
-    // const pattern = "{{[^{}]*}}";
-    const patterns: Array<PatternEntry> = [
-      {
-        pattern: '{{(?:(?!{{|}}).)*?}}',
-        cut_start: 2,
-        cut_end: 2
-      },
-      {
-        pattern: ':[^\\s]*',
-        cut_start: 1,
-        cut_end: 0
-      }
-    ]
-    for (let entry of patterns) {
+    for (let entry of this.settings.formats) {
       let pattern = entry.pattern;
       const regex = RegExp(pattern, 'g');
       if (event.key === 'Tab') {
@@ -166,98 +222,108 @@ export default class TextExpanderPlugin extends Plugin {
           const end = match.index + match[0].length;
           if (start <= cursor.ch && cursor.ch <= end) {
             event.preventDefault();
-            // Commented out, as it caused error in case if shortcut commend
-            // did not write to stdout. Example: {{now}} won't work after {{shell:true}}
-            // if (this.waiting) {
-            // 	new Notice("Cannot process two shortcuts in parallel");
-            // 	return;
-            // }
-            this.replaceShortcut(line, start, end, cm, entry);
+            this.replaceSnippet(line, start, end, cm, entry);
           }
         }
       }
     }
   };
 
-  replaceShortcut(
+  replaceSnippet(
     line: number,
     start: number,
     end: number,
     cm: CodeMirror.Editor,
-    entry: PatternEntry
+    entry: FormatEntry
   ) {
     const content = cm.getRange(
       {line: line, ch: start + entry.cut_start},
       {line: line, ch: end - entry.cut_end}
     );
 
-    this.settings.shortcuts.every(
-      (value: ShortcutEntry): Boolean => {
-        const regex = RegExp(value.regex);
-        if (regex.test(content)) {
-          if (value.replacement) {
-            cm.replaceRange(
-              value.replacement,
-              {ch: start, line: line},
-              {ch: end, line: line}
-            );
-            return false;
-          }
-          if (value.command) {
-            this.waiting = true;
-            this.codemirrorEditor = cm;
-            this.shortcutLine = line;
-            this.shortcutStart = start;
-            this.shortcutEnd = end;
-            let command = value.command;
-
-            const active_view = this.app.workspace.getActiveViewOfType(
-              MarkdownView
-            );
-            if (active_view === null) {
-              throw new Error('No active view found');
-            }
-            const vault_path = this.app.vault.adapter.basePath;
-            const inner_path = active_view.file.parent.path;
-            const file_name = active_view.file.name;
-            const file_path = require('path').join(
-              vault_path,
-              inner_path,
-              file_name
-            );
-            const scripts_path = require('path').join(
-              vault_path,
-              '.obsidian',
-              'scripts'
-            );
-            command = replaceAll(
-              command,
-              '<text>',
-              "'" + shellEscape(content) + "'"
-            );
-            command = replaceAll(command, '<text_raw>', content);
-            command = replaceAll(command, '<vault_path>', vault_path);
-            command = replaceAll(command, '<inner_path>', inner_path);
-            command = replaceAll(command, '<note_name>', file_name);
-            command = replaceAll(command, '<note_path>', file_path);
-            command = replaceAll(command, '<scripts_path>', scripts_path);
-            this.child.stdin.write(command + '\n');
-            return false;
-          }
+    let not_replaced_with_snippets = this.settings.snippets.every(
+      (value: SnippetEntry): Boolean => {
+        if (content == value.trigger) {
+          cm.replaceRange(
+            value.replacement,
+            {ch: start, line: line},
+            {ch: end, line: line}
+          );
+          return false;
         }
         return true;
       }
     );
+
+    if (!this.settings.is_custom_handler_enabled) {
+      return;
+    }
+
+    if (not_replaced_with_snippets) {
+      this.waiting = true;
+      this.codemirrorEditor = cm;
+      this.snippetLine = line;
+      this.snippetStart = start;
+      this.snippetEnd = end;
+      let request = {
+        "id": 0,
+        "text": content,
+        "context": this.getContext()
+      }
+      this.child.stdin.write(JSON.stringify(request) + '\n');
+    }
   }
-}
 
-function shellEscape(cmd: string) {
-  return replaceAll(cmd, "'", "'\"'\"'");
-}
+  getContext(): Context {
+    const active_view = this.app.workspace.getActiveViewOfType(
+      MarkdownView
+    );
+    const vault_path = this.app.vault.adapter.basePath;
+    var inner_path = null;
+    var file_name = null;
+    var file_path = null;
+    if (active_view != null) {
+      inner_path = active_view.file.parent.path;
+      file_name = active_view.file.name;
+      file_path = require('path').join(
+        vault_path,
+        inner_path,
+        file_name
+      );
+    }
+    const scripts_path = require('path').join(
+      vault_path,
+      '.obsidian',
+      'scripts'
+    );
+    const result: Context = {
+      "vault_path": vault_path,
+      "file_name": file_name,
+      "file_path": file_path,
+      "scripts_path": scripts_path,
+    }
+    return result;
+  }
 
-function replaceAll(s: string, search: string, replacement: string) {
-  const regex = RegExp(search, 'g');
-  return s.replace(regex, replacement);
+  replaceContext(s: string): string {
+    const context: Context = this.getContext();
+    const contextKeys = [
+      "vault_path",
+      "file_name",
+      "file_path",
+      "scripts_path"
+    ] as const;
+    for (let key of contextKeys) {
+      let value = context[key as typeof contextKeys[number]];
+      s = this.replaceAll(s, "<" + key + ">", value);
+    }
+    return s;
+  }
+
+  replaceAll(s: string, search: string, replacement: string): string {
+    const regex = RegExp(search, 'g');
+    return s.replace(regex, replacement);
+  }
 }
 
 class TextExpanderSettingTab extends PluginSettingTab {
@@ -269,56 +335,281 @@ class TextExpanderSettingTab extends PluginSettingTab {
   }
 
   display(): void {
-    const {containerEl} = this;
-
-    containerEl.empty();
-
-    new Setting(containerEl)
-      .setName('Shortcuts')
-      .setDesc(this.shortcutsHelp())
-      .addTextArea(text => {
-        text
-          .setPlaceholder(JSON.stringify(DEFAULT_SETTINGS, null, '\t'))
-          .setValue(JSON.stringify(this.plugin.settings.shortcuts, null, '\t'))
-          .onChange(async value => {
-            this.plugin.settings.shortcuts = JSON.parse(value);
-            await this.plugin.saveSettings();
-          });
-        text.inputEl.rows = 20;
-        text.inputEl.cols = 60;
-        text.inputEl.style.fontFamily = 'monospace';
-      });
-
-    new Setting(containerEl)
-      .setName('Shell executable')
-      .setDesc('All commands will be executed inside it.')
-      .addText(text => {
-        text
-          .setPlaceholder(DEFAULT_SETTINGS.shell)
-          .setValue(this.plugin.settings.shell)
-          .onChange(async value => {
-            this.plugin.settings.shell = value;
-            this.plugin.spawnShell();
-            await this.plugin.saveSettings();
-          });
-        text.inputEl.style.fontFamily = 'monospace';
-      });
+    this.renderFields();
   }
 
-  private shortcutsHelp(): DocumentFragment {
-    const descEl = document.createDocumentFragment();
-    descEl.appendText('Are defined as a JSON-list. Fields:');
-    descEl.createEl('br');
-    descEl.createEl('b').innerText = 'regex';
-    descEl.appendText(' (required) - trigger pattern');
-    descEl.createEl('br');
-    descEl.createEl('b').innerText = 'replacement';
-    descEl.appendText(' (optional) - text replacement, used if provided');
-    descEl.createEl('br');
-    descEl.createEl('b').innerText = 'command';
-    descEl.appendText(
-      ' (optional) - shell command whose stdout is used as a replacement'
-    );
-    return descEl;
+  renderFields() {
+    const {containerEl} = this;
+    containerEl.empty();
+
+    let basicSettingsHeader = containerEl.createEl("h2").innerText = "Basic Settings";
+    let snippetsHeader = containerEl.createEl("h3").innerText = "Snippets";
+    let snippetsEl = containerEl.createEl("div");
+    snippetsEl.setAttribute("class", "text-expander-options text-expander-snippets");
+    snippetsEl.createEl("div").innerText = "Trigger";
+    snippetsEl.createEl("div").innerText = "Replacement";
+    snippetsEl.createEl("div");
+
+    for (let key in this.plugin.settings.snippets) {
+      new Setting(snippetsEl)
+        .addText(text => {
+          text
+            .setPlaceholder("trigger")
+            .setValue(this.plugin.settings.snippets[key]["trigger"])
+            .onChange(async value => {
+              this.plugin.settings.snippets[key]["trigger"] = value;
+              await this.plugin.saveSettings();
+            });
+        });
+      new Setting(snippetsEl)
+        .addTextArea(text => {
+          text
+            .setPlaceholder("replacement")
+            .setValue(this.plugin.settings.snippets[key]["replacement"])
+            .onChange(async value => {
+              this.plugin.settings.snippets[key]["replacement"] = value;
+              await this.plugin.saveSettings();
+            });
+          text.inputEl.cols = 40;
+        });
+      new ExtraButtonComponent(snippetsEl)
+        .setIcon("cross")
+        .onClick(() => {
+          new SnippetRemovalConfirmationModal(this.plugin.app, this.plugin, this, +key).open();
+        })
+    }
+    let addSnippetButtonWrapper = containerEl.createEl("div");
+    addSnippetButtonWrapper.setAttribute("style", "display: flex; justify-content: center;");
+    new ButtonComponent(addSnippetButtonWrapper)
+      .setButtonText("New snippet")
+      .setCta()
+      .onClick(async () => {
+        let newEntry: SnippetEntry = {trigger: "", replacement: ""};
+        this.plugin.settings.snippets.push(newEntry);
+        this.renderFields();
+        await this.plugin.saveSettings();
+      })
+    containerEl.createEl("hr");
+
+    let advancedSettingsHeader = containerEl.createEl("h2").innerText = "Advanced Settings";
+    let formatsHeader = containerEl.createEl("h3").innerText = "Formats";
+    let formatsEl = containerEl.createEl("div");
+    formatsEl.setAttribute("class", "text-expander-options text-expander-formats");
+    formatsEl.createEl("div").innerText = "Format";
+    formatsEl.createEl("div").innerText = "Cut start";
+    formatsEl.createEl("div").innerText = "Cut end";
+    formatsEl.createEl("div");
+
+    for (let key in this.plugin.settings.formats) {
+      new Setting(formatsEl)
+        .addText(text => {
+          text
+            .setPlaceholder("pattern")
+            .setValue(this.plugin.settings.formats[key]["pattern"])
+            .onChange(async value => {
+              this.plugin.settings.formats[key]["pattern"] = value;
+              await this.plugin.saveSettings();
+            });
+        });
+      new Setting(formatsEl)
+        .addText(text => {
+          text
+            .setPlaceholder("0")
+            .setValue(String(this.plugin.settings.formats[key]["cut_start"]))
+            .onChange(async value => {
+              this.plugin.settings.formats[key]["cut_start"] = +value;
+              await this.plugin.saveSettings();
+            });
+        });
+      new Setting(formatsEl)
+        .addText(text => {
+          text
+            .setPlaceholder("0")
+            .setValue(String(this.plugin.settings.formats[key]["cut_end"]))
+            .onChange(async value => {
+              this.plugin.settings.formats[key]["cut_end"] = +value;
+              await this.plugin.saveSettings();
+            });
+        });
+      new ExtraButtonComponent(formatsEl)
+        .setIcon("cross")
+        .onClick(() => {
+          new FormatRemovalConfirmationModal(this.plugin.app, this.plugin, this, +key).open();
+        })
+    }
+    let addFormatButtonWrapper = containerEl.createEl("div");
+    addFormatButtonWrapper.setAttribute("style", "display: flex; justify-content: center;");
+    new ButtonComponent(addFormatButtonWrapper)
+      .setButtonText("New format")
+      .setCta()
+      .onClick(async () => {
+        let newEntry: FormatEntry = {pattern: "", cut_start: 0, cut_end: 0};
+        this.plugin.settings.formats.push(newEntry);
+        this.renderFields();
+        await this.plugin.saveSettings();
+      })
+
+    containerEl.createEl("hr");
+
+    containerEl.createEl("h3").innerText = "Custom handler";
+    let enableCustomHandlerSetting = new Setting(containerEl)
+      .setName('Enable custom handler')
+      .addToggle(toggle => {
+        toggle
+          .setValue(this.plugin.settings.is_custom_handler_enabled)
+          .onChange(async value => {
+            this.plugin.settings.is_custom_handler_enabled = value;
+            this.renderFields()
+            await this.plugin.saveSettings();
+          });
+      });
+    enableCustomHandlerSetting.settingEl.setAttribute("style", "border: none;");
+
+    if (this.plugin.settings.is_custom_handler_enabled) {
+      let customHandlerSetting = new Setting(containerEl)
+        .setName('Handler command')
+        .addTextArea(text => {
+          text
+            .setPlaceholder(DEFAULT_SETTINGS.handler_command)
+            .setValue(this.plugin.settings.handler_command)
+            .onChange(async value => {
+              this.plugin.settings.handler_command = value;
+              await this.plugin.saveSettings();
+            });
+          text.inputEl.style.fontFamily = 'monospace';
+          text.inputEl.cols = 40;
+        });
+      customHandlerSetting.settingEl.setAttribute("style", "border: none;");
+    }
+
+    containerEl.createEl("hr");
+
+    containerEl.createEl("h3").innerText = "Migration manager";
+    let enableMigrationManagerSetting = new Setting(containerEl)
+      .setName('Enable migration manager')
+      .addToggle(toggle => {
+        toggle
+          .setValue(this.plugin.settings.is_migration_manager_enabled)
+          .onChange(async value => {
+            this.plugin.settings.is_migration_manager_enabled = value;
+            this.renderFields()
+            await this.plugin.saveSettings();
+          });
+      });
+    enableMigrationManagerSetting.settingEl.setAttribute("style", "border: none;");
+
+    if (this.plugin.settings.is_migration_manager_enabled) {
+      let legacySettingsField = new Setting(containerEl)
+        .setName('Legacy settings')
+        .addTextArea(text => {
+          text.setValue(this.plugin.settings.legacy_settings)
+          text.inputEl.style.fontFamily = 'monospace';
+          text.inputEl.cols = 60;
+          text.inputEl.rows = 30;
+        })
+        .setDisabled(true);
+      legacySettingsField.settingEl.setAttribute("style", "border: none;");
+
+      let migrateButtonWrapper = containerEl.createEl("div");
+      migrateButtonWrapper.setAttribute("style", "display: flex; justify-content: center;");
+      new ButtonComponent(migrateButtonWrapper)
+        .setButtonText("Migrate replacements")
+        .setCta()
+        .onClick(async () => {
+          new Notice("Migration manager is not implemented yet")
+          // this.renderFields();
+          // await this.plugin.saveSettings();
+        })
+    }
+  }
+}
+
+class SnippetRemovalConfirmationModal extends Modal {
+  plugin: TextExpanderPlugin;
+  settingsTab: TextExpanderSettingTab;
+  snippetId: number;
+
+  constructor(app: App, plugin: TextExpanderPlugin, settingsTab: TextExpanderSettingTab, snippetId: number) {
+    super(app);
+    this.plugin = plugin;
+    this.settingsTab = settingsTab;
+    this.snippetId = snippetId;
+  }
+
+  onOpen() {
+    let {contentEl} = this;
+    let wrapperEl = contentEl
+      .createEl("div")
+    wrapperEl.setAttribute("style", "display: flex; flex-direction: column;")
+    let promptEl = wrapperEl
+      .createEl("div")
+      .setText(`Are you sure you want to remove the snippet "${this.plugin.settings.snippets[this.snippetId]['trigger']}"?`);
+    let buttonContainerEl = wrapperEl
+      .createEl("div")
+    buttonContainerEl.setAttribute("style", "margin-top: 1em; display: flex; justify-content: center;")
+    new ButtonComponent(buttonContainerEl)
+      .setButtonText("Cancel")
+      .setCta()
+      .onClick(() => {
+        this.close();
+      })
+    new ButtonComponent(buttonContainerEl)
+      .setButtonText("Remove")
+      .onClick(async () => {
+        this.plugin.settings.snippets.splice(this.snippetId, 1);
+        this.close();
+        this.settingsTab.renderFields();
+        await this.plugin.saveSettings();
+      })
+  }
+
+  onClose() {
+    let {contentEl} = this;
+    contentEl.empty();
+  }
+}
+
+class FormatRemovalConfirmationModal extends Modal {
+  plugin: TextExpanderPlugin;
+  settingsTab: TextExpanderSettingTab;
+  formatId: number;
+
+  constructor(app: App, plugin: TextExpanderPlugin, settingsTab: TextExpanderSettingTab, formatId: number) {
+    super(app);
+    this.plugin = plugin;
+    this.settingsTab = settingsTab;
+    this.formatId = formatId;
+  }
+
+  onOpen() {
+    let {contentEl} = this;
+    let wrapperEl = contentEl
+      .createEl("div")
+    wrapperEl.setAttribute("style", "display: flex; flex-direction: column;")
+    let promptEl = wrapperEl
+      .createEl("div")
+      .setText(`Are you sure you want to remove the format "${this.plugin.settings.formats[this.formatId]['pattern']}"?`);
+    let buttonContainerEl = wrapperEl
+      .createEl("div")
+    buttonContainerEl.setAttribute("style", "margin-top: 1em; display: flex; justify-content: center;")
+    new ButtonComponent(buttonContainerEl)
+      .setButtonText("Cancel")
+      .setCta()
+      .onClick(() => {
+        this.close();
+      })
+    new ButtonComponent(buttonContainerEl)
+      .setButtonText("Remove")
+      .onClick(async () => {
+        this.plugin.settings.formats.splice(this.formatId, 1);
+        this.close();
+        this.settingsTab.renderFields();
+        await this.plugin.saveSettings();
+      })
+  }
+
+  onClose() {
+    let {contentEl} = this;
+    contentEl.empty();
   }
 }

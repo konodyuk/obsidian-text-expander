@@ -1,0 +1,28 @@
+.text-expander-options {
+    display: inline-grid;
+    margin-bottom: 1em;
+    grid-column-gap: 5px;
+    grid-row-gap: 5px;
+}
+
+.text-expander-options .setting-item {
+    border: none !important;
+    display: block !important;
+}
+
+.text-expander-options .setting-item,
+.text-expander-options .setting-editor-extra-setting-button {
+    padding: 5px 0 5px 0 !important;
+}
+
+.text-expander-options .setting-item .setting-item-control {
+    justify-content: left !important;
+}
+
+.text-expander-snippets {
+    grid-template-columns: auto auto 10px;
+}
+
+.text-expander-formats {
+    grid-template-columns: auto auto auto 10px;
+}
