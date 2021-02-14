@@ -11,7 +11,8 @@
     "compile": "tsc",
     "fix": "gts fix",
     "pretest": "npm run compile",
-    "posttest": "npm run lint"
+    "posttest": "npm run lint",
+    "ship": "npm run install && npm run build"
   },
   "keywords": [],
   "author": "",
