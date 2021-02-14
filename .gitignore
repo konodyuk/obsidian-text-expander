@@ -148,3 +148,4 @@ dist
 
 # build
 main.js
+package-lock.json
