@@ -112,7 +112,7 @@ export default class TextExpanderPlugin extends Plugin {
   }
 
   async loadSettings() {
-    this.settings = Object.assign(Object.create(DEFAULT_SETTINGS), await this.loadData());
+    this.settings = Object.assign({...DEFAULT_SETTINGS }, await this.loadData());
     this.loadLegacy()
   }
 
