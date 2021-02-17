@@ -232,11 +232,45 @@ export default class TextExpanderPlugin extends Plugin {
     replacement: string,
     cm: CodeMirror.Editor
   ) {
+    let start_indent = cm.getRange(
+      {line: line, ch: 0},
+      {line: line, ch: start}
+    );
+    replacement = this.replaceAll(replacement, "<keepindent>", start_indent);
+
+    let cursorRegex = RegExp("<cursor>");
+    let lineStartRegex = RegExp("^", "gm");
+    let n_lines = replacement.match(lineStartRegex).length;
+    let setCursorPosition = cursorRegex.test(replacement);
+    let cursor_start = null;
+    let cursor_absolute_line = null;
+    if (setCursorPosition) {
+      let cursor_relative_line = null;
+      let lines = replacement.split(lineStartRegex);
+      for (let cursor_line = 0; cursor_line < n_lines; cursor_line++) {
+        let current_line = lines[cursor_line];
+        let cursor_match = current_line.match(cursorRegex);
+        if (cursor_match !== null) {
+          cursor_start = cursor_match.index;
+          cursor_relative_line = cursor_line;
+          if (cursor_line == 0) {
+            cursor_start += start_indent.length;
+          }
+        }
+      }
+      cursor_absolute_line = line + cursor_relative_line;
+      replacement = this.replaceAll(replacement, "<cursor>", "");
+    }
+
     cm.replaceRange(
       replacement,
       {ch: start, line: line},
       {ch: end, line: line}
     );
+
+    if (setCursorPosition) {
+      cm.setCursor({ch: cursor_start, line: cursor_absolute_line});
+    }
   }
 
   replaceSnippet(
