@@ -192,11 +192,7 @@ export default class TextExpanderPlugin extends Plugin {
   private readonly handleSubprocessStdout = (data: Buffer): void => {
     let response = JSON.parse(data.toString());
     if (this.waiting) {
-      this.codemirrorEditor.replaceRange(
-        response.replacement,
-        {ch: this.snippetStart, line: this.snippetLine},
-        {ch: this.snippetEnd, line: this.snippetLine}
-      );
+      this.replaceRange(this.snippetLine, this.snippetStart, this.snippetEnd, response.replacement, this.codemirrorEditor);
       this.waiting = false;
     }
   };
@@ -229,6 +225,20 @@ export default class TextExpanderPlugin extends Plugin {
     }
   };
 
+  replaceRange(
+    line: number,
+    start: number,
+    end: number,
+    replacement: string,
+    cm: CodeMirror.Editor
+  ) {
+    cm.replaceRange(
+      replacement,
+      {ch: start, line: line},
+      {ch: end, line: line}
+    );
+  }
+
   replaceSnippet(
     line: number,
     start: number,
@@ -244,11 +254,7 @@ export default class TextExpanderPlugin extends Plugin {
     let not_replaced_with_snippets = this.settings.snippets.every(
       (value: SnippetEntry): Boolean => {
         if (content == value.trigger) {
-          cm.replaceRange(
-            value.replacement,
-            {ch: start, line: line},
-            {ch: end, line: line}
-          );
+          this.replaceRange(line, start, end, value.replacement, cm);
           return false;
         }
         return true;
