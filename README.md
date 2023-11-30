@@ -1,3 +1,5 @@
+> ⚠️  UPDATE (NOV 2023): This plugin is not maintained. Do not install it, use supported alternatives.
+
 > ⚠️ CM6-based editor (default option in Obsidian >= v13.0.0) is not supported. Consider using Legacy editor.
 
 ![demo](https://raw.githubusercontent.com/konodyuk/obsidian-text-expander/master/images/obsidian-text-expander-demo.gif)
